@@ -16,6 +16,10 @@ class MainViewModel @Inject constructor(
     private val repository: EntryRepository
 ) : ViewModel() {
 
+    init {
+        println("MainViewModel contructor")
+    }
+
     val pagedEntries: Flow<PagingData<Entry>> =
         repository.getPagedEntries().cachedIn(viewModelScope)
 

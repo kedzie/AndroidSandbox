@@ -53,13 +53,23 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.material3.windowsizeclass)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
+
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+
     implementation(libs.androidx.paging.runtime.ktx)
     implementation(libs.androidx.paging.compose)
-    implementation(libs.androidx.navigation.compose)
+
+//    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.androidx.material3.adaptive.navigation3)
+    implementation(libs.kotlinx.serialization.core)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

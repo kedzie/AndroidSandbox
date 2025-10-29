@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Button
@@ -28,10 +26,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -43,10 +39,12 @@ import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.NavDisplay
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -68,7 +66,7 @@ class MainActivity : ComponentActivity() {
 
 
 
-sealed class Route {
+sealed class Route : NavKey {
     @Serializable
     object Home : Route()
     @Serializable
@@ -83,7 +81,7 @@ sealed class Route {
 fun MyApplicationApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
 
-    val navController = rememberNavController()
+    val backStack = rememberNavBackStack(Route.Home)
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -97,26 +95,51 @@ fun MyApplicationApp() {
                     },
                     label = { Text(it.label) },
                     selected = it == currentDestination,
-                    onClick = { navController.navigate(it.route); currentDestination = it }
+                    onClick = {
+                        backStack.clear()
+                        backStack.add(it.route)
+                        currentDestination = it
+                    }
                 )
             }
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            NavHost(navController = navController, startDestination = Route.Home) {
-                composable<Route.Home> { HomeScreen(
-                    goToProfile = {navController.navigate(Route.Profile(it))},
-                    modifier = Modifier.padding(innerPadding)
-                ) }
-                composable<Route.Favorites> { FavoritesScreen(
-                    modifier = Modifier.padding(innerPadding)
-                ) }
-                composable<Route.Profile> { backStackEntry ->
-                    val profile: Route.Profile = backStackEntry.toRoute()
-                    ProfileScreen(
-                    modifier = Modifier.padding(innerPadding)
-                ) }
-            }
+
+            NavDisplay(
+                backStack = backStack,
+                onBack = { if (backStack.isNotEmpty()) {
+                    backStack.removeLastOrNull()
+                } },
+                sceneStrategy = rememberTwoPaneSceneStrategy(),
+                entryDecorators = listOf(
+                    rememberSaveableStateHolderNavEntryDecorator(),
+                    rememberViewModelStoreNavEntryDecorator()
+                ),
+                entryProvider = entryProvider {
+                    entry<Route.Home>(metadata = TwoPaneScene.twoPane()) {
+                        HomeScreen(
+                            goToProfile = {
+                                backStack.add(Route.Profile(it)) },
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
+                    entry<Route.Favorites> {
+                        FavoritesScreen(
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
+                    entry<Route.Profile>(metadata = TwoPaneScene.twoPane()) {
+                        ProfileScreen(
+                            viewModel = hiltViewModel(creationCallback = { factory: ProfileViewModel.ProfileViewModelFactory ->
+                                factory.create(id = it.id)
+                            }),
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
+                }
+            )
+
 
         }
     }
@@ -214,7 +237,7 @@ fun FavoritesScreen(modifier: Modifier) {
 
 
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel(),
+fun ProfileScreen(viewModel: ProfileViewModel,
                   modifier: Modifier) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     Text(
