@@ -1,39 +1,94 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.myapplication
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
@@ -44,10 +99,13 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
+import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 @AndroidEntryPoint
@@ -75,7 +133,22 @@ sealed class Route : NavKey {
     class Profile(val id: String) : Route()
 }
 
+enum class AppDestinations(
+    val label: String,
+    val icon: ImageVector,
+    val route: Route,
+) {
+    HOME("Home", Icons.Default.Home, Route.Home),
+    FAVORITES("Favorites", Icons.Default.Favorite, Route.Favorites),
+}
 
+val LocalAnimationDuration = compositionLocalOf { 1000 }
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+val LocalSharedTransitionScope = compositionLocalOf<SharedTransitionScope?> { null }
+
+
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3AdaptiveApi::class)
 @PreviewScreenSizes
 @Composable
 fun MyApplicationApp() {
@@ -104,152 +177,504 @@ fun MyApplicationApp() {
             }
         }
     ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
 
-            NavDisplay(
-                backStack = backStack,
-                onBack = { if (backStack.isNotEmpty()) {
-                    backStack.removeLastOrNull()
-                } },
-                sceneStrategy = rememberTwoPaneSceneStrategy(),
-                entryDecorators = listOf(
-                    rememberSaveableStateHolderNavEntryDecorator(),
-                    rememberViewModelStoreNavEntryDecorator()
-                ),
-                entryProvider = entryProvider {
-                    entry<Route.Home>(metadata = TwoPaneScene.twoPane()) {
-                        HomeScreen(
-                            goToProfile = {
-                                backStack.add(Route.Profile(it)) },
-                            modifier = Modifier.padding(innerPadding)
-                        )
+        val snackbarHostState = remember { SnackbarHostState() }
+
+        val scope = rememberCoroutineScope()
+
+        val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+
+        Box(modifier = Modifier
+            .fillMaxSize()) {
+            val systemInsets = WindowInsets.statusBars.asPaddingValues()
+            Icon(
+                imageVector = Icons.Filled.Star,
+                tint = Color.Red,
+                contentDescription = "Localized description",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(TopAppBarDefaults.LargeAppBarExpandedHeight + systemInsets.calculateTopPadding())
+                    .background(color = Color.Yellow)
+                    .graphicsLayer {
+                        // GOOD: Reading state INSIDE the Draw phase lambda
+                        val currentOffset = scrollBehavior.state.heightOffset
+                        val currentFraction = scrollBehavior.state.collapsedFraction
+
+                        translationY = currentOffset * 0.5f
+                        alpha = (1f - (currentFraction * 1.5f)).coerceAtLeast(0f)
                     }
-                    entry<Route.Favorites> {
-                        FavoritesScreen(
-                            modifier = Modifier.padding(innerPadding)
-                        )
-                    }
-                    entry<Route.Profile>(metadata = TwoPaneScene.twoPane()) {
-                        ProfileScreen(
-                            viewModel = hiltViewModel(creationCallback = { factory: ProfileViewModel.ProfileViewModelFactory ->
-                                factory.create(id = it.id)
-                            }),
-                            modifier = Modifier.padding(innerPadding)
-                        )
-                    }
-                }
             )
 
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.imePadding() // Automatically pushes up above the software keyboard
+                ) { data ->
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.StartToEnd || value == SwipeToDismissBoxValue.EndToStart) {
+                                data.dismiss()
+                                true
+                            } else false
+                        }
+                    )
 
-        }
-    }
-}
-
-enum class AppDestinations(
-    val label: String,
-    val icon: ImageVector,
-    val route: Route,
-) {
-    HOME("Home", Icons.Default.Home, Route.Home),
-    FAVORITES("Favorites", Icons.Default.Favorite, Route.Favorites),
-}
-
-@Composable
-fun HomeScreen(viewModel: MainViewModel = hiltViewModel(),
-               goToProfile : (String)->Unit = {},
-               modifier: Modifier) {
-    val pagedEntries = viewModel.pagedEntries.collectAsLazyPagingItems()
-    var text by remember { mutableStateOf("") }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize(),
-        verticalArrangement = Arrangement.Top
-    ) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text("New Entry") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                viewModel.addEntry(text)
-                text = ""
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = { /* Optional: Render a background highlight when swiping */ },
+                        content = {
+                            // Your custom interactive UI component
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                                    .background(MaterialTheme.colorScheme.inverseSurface, RoundedCornerShape(12.dp)),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = data.visuals.message,
+                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                data.visuals.actionLabel?.let { label ->
+                                    Button(onClick = { data.performAction() }) {
+                                        Text(label)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
             },
-            modifier = Modifier.align(Alignment.End)
-        ) {
-            Text("Add")
-        }
+            topBar = {
+                LargeTopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    title = {
+                        Text("")
+                    },
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        IconButton(onClick = { if (backStack.isNotEmpty()) {
+                            backStack.removeLastOrNull()
+                        } }) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = "Localized description"
+                            )
+                        }
+                    },
+                    actions = {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(4.dp)
+                        ) {
+                            Button(
+                                onClick = { },
+                                shape = CircleShape,
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = "a",
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.Menu,
+                                contentDescription = "Localized description",
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .border(1.dp, Color.Red, CircleShape)
+                                    .background(color = Color.Yellow, shape = CircleShape)
+                            )
+                        }
+                    },
+                )
+            },
+            floatingActionButtonPosition = FabPosition.EndOverlay,
+            floatingActionButton = {
+                FloatingActionButton(onClick = {
+                    scope.launch  {
+                        snackbarHostState.showSnackbar("Hello")
+                    }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(pagedEntries.itemCount) { index ->
-                val entry = pagedEntries[index]
-                if (entry != null) {
-                    Text(
-                        text = "• ${entry.text}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(vertical = 4.dp).clickable {
-                            goToProfile(entry.text)
-                        },
+                }, shape = CircleShape, modifier = Modifier.size(48.dp), ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Localized description",
+                        modifier = Modifier
+                            .size(16.dp)
+                            .border(1.dp, Color.Red, CircleShape)
+                            .background(color = Color.Yellow, shape = CircleShape)
                     )
                 }
             }
+        ) { innerPadding ->
 
-            pagedEntries.apply {
-                when {
-                    loadState.refresh is androidx.paging.LoadState.Loading -> {
-                        item { CircularProgressIndicator(
-                            modifier = Modifier.fillMaxWidth()
-                                .wrapContentWidth(Alignment.CenterHorizontally)
-                        ) }
+            SharedTransitionLayout(modifier = Modifier.padding(innerPadding)) {
+                CompositionLocalProvider(
+                    LocalAnimationDuration provides 1000,
+                    LocalSharedTransitionScope provides this@SharedTransitionLayout
+                ) {
+                    val duration = LocalAnimationDuration.current
+                    NavDisplay(
+                        backStack = backStack,
+                        onBack = {
+                            if (backStack.isNotEmpty()) {
+                                backStack.removeLastOrNull()
+                            }
+                        },
+                        sceneStrategy = rememberListDetailSceneStrategy(),
+                        entryDecorators = listOf(
+                            rememberSaveableStateHolderNavEntryDecorator(),
+                            rememberViewModelStoreNavEntryDecorator()
+                        ),
+//                        transitionSpec = {
+//                            slideIntoContainer(
+//                                towards = AnimatedContentTransitionScope.SlideDirection.Left,
+//                                animationSpec = tween(duration)
+//                            ) togetherWith slideOutOfContainer(
+//                                towards = AnimatedContentTransitionScope.SlideDirection.Left,
+//                                animationSpec = tween(duration)
+//                            )
+//                        },
+//                        popTransitionSpec = {
+//                            slideIntoContainer(
+//                                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+//                                animationSpec = tween(duration)
+//                            ) togetherWith slideOutOfContainer(
+//                                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+//                                animationSpec = tween(duration)
+//                            )
+//                        },
+//                        predictivePopTransitionSpec = {
+//                            slideIntoContainer(
+//                                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+//                                animationSpec = tween(duration)
+//                            ) togetherWith slideOutOfContainer(
+//                                towards = AnimatedContentTransitionScope.SlideDirection.Right,
+//                                animationSpec = tween(duration)
+//                            )
+//                        },
+                        entryProvider = entryProvider {
+                            entry<Route.Home>(metadata = ListDetailSceneStrategy.listPane {}) {
+                                HomeScreen(
+                                    goToProfile = {
+                                        if (backStack.last() is Route.Profile)
+                                            backStack.removeLastOrNull()
+                                        backStack.add(Route.Profile(it))
+                                    },
+                                    modifier = Modifier.background(color = MaterialTheme.colorScheme.background)
+                                )
+                            }
+                            entry<Route.Favorites>(metadata = NavDisplay.transitionSpec {
+                                slideIntoContainer(
+                                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                                    animationSpec = tween(duration)
+                                ) togetherWith slideOutOfContainer(
+                                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                                    animationSpec = tween(duration)
+                                )
+                            }) {
+                                OpenAIScreen(
+                                    modifier = Modifier
+                                )
+                            }
+                            entry<Route.Profile>(metadata = ListDetailSceneStrategy.detailPane()) {
+                                ProfileScreen(
+                                    viewModel = hiltViewModel(creationCallback = { factory: ProfileViewModel.ProfileViewModelFactory ->
+                                        factory.create(id = it.id)
+                                    }),
+                                    modifier = Modifier
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+    }
+}
+
+
+    @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3AdaptiveApi::class)
+    @Composable
+    fun HomeScreen(
+        viewModel: MainViewModel = hiltViewModel(),
+        goToProfile: (String) -> Unit = {},
+        modifier: Modifier
+    ) {
+        val pagedEntries = viewModel.pagedEntries.collectAsLazyPagingItems()
+        var text by remember { mutableStateOf("") }
+        with(LocalSharedTransitionScope.current!!) {
+
+
+
+        Column(
+            modifier = modifier
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.Top
+        ) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("New Entry") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .sharedBounds(
+                        rememberSharedContentState(key = "textfield"),
+                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                        enter = fadeIn(initialAlpha = 0f),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                    ),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    viewModel.addEntry(text)
+                    text = ""
+                },
+                modifier = Modifier
+                    .align(Alignment.End)
+            ) {
+                Text("Add")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(pagedEntries.itemCount) { index ->
+                        val entry = pagedEntries[index]
+                        if (entry != null) {
+                            Text(
+                                text = entry.text,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier
+                                    .padding(vertical = 4.dp)
+                                    .sharedBounds(
+                                        rememberSharedContentState(key = entry.text),
+                                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                                        enter = fadeIn(),
+                                        exit = fadeOut(),
+                                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                                    )
+                                    .clickable {
+                                        goToProfile(entry.text)
+                                    },
+                            )
+                        }
                     }
-                    loadState.append is androidx.paging.LoadState.Loading -> {
-                        item { CircularProgressIndicator(
-                            modifier = Modifier.fillMaxWidth()
-                                .wrapContentWidth(Alignment.CenterHorizontally)
-                        ) }
-                    }
-                    loadState.refresh is androidx.paging.LoadState.Error -> {
-                        val e = loadState.refresh as androidx.paging.LoadState.Error
-                        item { Text(
-                            text = "Error: ${'$'}{e.error.message}",
-                            modifier = Modifier.fillMaxWidth()
-                                .wrapContentWidth(Alignment.CenterHorizontally)
-                        )  }
+
+                    pagedEntries.apply {
+                        when {
+                            loadState.refresh is LoadState.Loading -> {
+                                item {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .wrapContentWidth(Alignment.CenterHorizontally)
+                                    )
+                                }
+                            }
+
+                            loadState.append is LoadState.Loading -> {
+                                item {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .wrapContentWidth(Alignment.CenterHorizontally)
+                                    )
+                                }
+                            }
+
+                            loadState.refresh is LoadState.Error -> {
+                                val e = loadState.refresh as LoadState.Error
+                                item {
+                                    Text(
+                                        text = "Error: ${'$'}{e.error.message}",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .wrapContentWidth(Alignment.CenterHorizontally)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
-}
 
-@Composable
-fun FavoritesScreen(modifier: Modifier) {
-    Text(
-        text = "Favorites",
-        modifier = modifier
-    )
-}
-
-
-@Composable
-fun ProfileScreen(viewModel: ProfileViewModel,
-                  modifier: Modifier) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    Text(
-        text = "Profile: $uiState",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun FavoritesScreenPreview() {
-    MyApplicationTheme {
-        FavoritesScreen(Modifier)
+    @Composable
+    fun FavoritesScreen(modifier: Modifier) {
+        Column(
+            modifier = modifier
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.Top
+        ) {
+            Text(
+                text = "Favorites",
+                modifier = modifier
+            )
+        }
     }
-}
+
+
+    @OptIn(ExperimentalSharedTransitionApi::class)
+    @Composable
+    fun ProfileScreen(
+        viewModel: ProfileViewModel,
+        modifier: Modifier
+    ) {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+        with(LocalSharedTransitionScope.current!!) {
+            Column(
+                modifier = modifier
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.Top
+            ) {
+                Row(
+                    modifier = modifier
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Profile: ",
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        text = uiState,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.sharedBounds(
+                            rememberSharedContentState(key = uiState),
+                            animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    @Preview(showBackground = true)
+    @Composable
+    fun FavoritesScreenPreview() {
+        MyApplicationTheme {
+            FavoritesScreen(Modifier)
+        }
+    }
+
+
+    @OptIn(ExperimentalSharedTransitionApi::class)
+    @Composable
+    fun OpenAIScreen(modifier: Modifier) {
+        with(LocalSharedTransitionScope.current!!) {
+        Column(modifier = modifier.fillMaxSize()) {
+            var text by remember { mutableStateOf("") }
+            TextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Enter Text") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .sharedBounds(
+                        rememberSharedContentState(key = "textfield"),
+                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                        enter = fadeIn(initialAlpha = 0f),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                    ),
+                maxLines = 10
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp, 4.dp)
+                    .imePadding()
+            ) {
+                Button(
+                    onClick = {},
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("English")
+                }
+                IconButton(
+                    onClick = {}
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ShoppingCart,
+                        contentDescription = "Swap languages",
+                    )
+                }
+                Button(
+                    onClick = {},
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Spanish")
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp, 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Button(
+                        onClick = {},
+                        shape = CircleShape,
+                        modifier = Modifier.size(48.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Star,
+                            contentDescription = "Conversation",
+                        )
+                    }
+                }
+                Button(
+                    onClick = {},
+                    shape = CircleShape,
+                    modifier = Modifier.size(96.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ThumbUp,
+                        contentDescription = "Text 2 Speech",
+                    )
+                }
+                Column {
+                    Button(
+                        onClick = {},
+                        shape = CircleShape,
+                        modifier = Modifier.size(48.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Star,
+                            contentDescription = "Camera",
+                        )
+                    }
+                }
+            }
+        }
+        }
+
+    }
