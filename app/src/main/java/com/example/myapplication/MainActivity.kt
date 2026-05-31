@@ -278,8 +278,6 @@ fun MyApplicationApp() {
                         Text(currentDestination.label,
                             modifier = Modifier.semantics {
                                 heading()
-                                liveRegion = LiveRegionMode.Polite
-                                traversalIndex = -1f
                             })
                     },
                     scrollBehavior = scrollBehavior,

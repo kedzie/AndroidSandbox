@@ -136,11 +136,12 @@ fun Modifier.sharedBoundsWithMorphableShape(
     val clipShape = remember(morph) {
         MorphableShape(morph = morph, progressState = progressState)
     }
-        this@sharedBoundsWithMorphableShape.skipToLookaheadSize().skipToLookaheadPosition().sharedBounds(
+        this@sharedBoundsWithMorphableShape.sharedBounds(
             sharedContentState = rememberSharedContentState(key = key),
             animatedVisibilityScope = animatedVisibilityScope,
             enter = enter,
             exit = exit,
+            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
             clipInOverlayDuringTransition = OverlayClip(clipShape),
-        )
+        ).skipToLookaheadSize().skipToLookaheadPosition()
 }

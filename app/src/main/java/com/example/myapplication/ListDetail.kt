@@ -2,6 +2,8 @@ package com.example.myapplication
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -28,20 +32,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
-import androidx.graphics.shapes.CornerRounding
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.circle
 import androidx.graphics.shapes.rectangle
@@ -65,7 +69,10 @@ fun HomeScreen(
     with(LocalSharedTransitionScope.current!!) {
         Column(
             modifier = modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .semantics {
+                    paneTitle = "User List"
+                },
             verticalArrangement = Arrangement.Top
         ) {
             OutlinedTextField(
@@ -84,15 +91,6 @@ fun HomeScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    // TalkBack: announces "double tap to Add entry" on the field
-                    .semantics {
-                        onClick(label = "Add entry") {
-                            viewModel.addEntry(text)
-                            text = ""
-                            focusManager.clearFocus()
-                            true
-                        }
-                    }
                     .sharedBounds(
                         rememberSharedContentState(key = "textfield"),
                         animatedVisibilityScope = LocalNavAnimatedContentScope.current,
@@ -102,59 +100,84 @@ fun HomeScreen(
                     ),
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    viewModel.addEntry(text)
-                    text = ""
-                },
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .semantics {
-                        onClick(label = "add entry") {
-                            viewModel.addEntry(text)
-                            text = ""
-                            true
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        viewModel.addEntry(text)
+                        text = ""
+                        focusManager.clearFocus()
+                    },
+                    modifier = Modifier
+                        .semantics {
+                            onClick(label = "add entry") {
+                                viewModel.addEntry(text)
+                                text = ""
+                                focusManager.clearFocus()
+                                true
+                            }
                         }
-                    }
-            ) {
-                Text("Add")
-            }
-            Button(
-                onClick = {
-                    goToCamera()
-                },
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .semantics {
-                        onClick(label = "Go to camera") {
-                            goToCamera()
-                            true
+                ) {
+                    Text("Add")
+                }
+                Button(
+                    onClick = {
+                        goToCamera()
+                    },
+                    modifier = Modifier
+                        .semantics {
+                            onClick(label = "Go to camera") {
+                                goToCamera()
+                                true
+                            }
                         }
-                    }
-                    .sharedBoundsWithMorphableShape("camera",
-                        sharedTransitionScope = LocalSharedTransitionScope.current!!,
-                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                        startShape = RoundedPolygon.circle(numVertices = 8),
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        endShape   = RoundedPolygon.rectangle())
-            ) {
-                Text("Camera")
+                        .sharedBoundsWithMorphableShape("camera",
+                            sharedTransitionScope = LocalSharedTransitionScope.current!!,
+                            animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                            startShape = RoundedPolygon.circle(numVertices = 8),
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            endShape   = RoundedPolygon.rectangle())
+                ) {
+                    Text("Camera")
+                }
             }
-
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            var selectedIndex by remember { mutableIntStateOf(-1) }
+            var selectedIndex by rememberSaveable { mutableIntStateOf(-1) }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(pagedEntries.itemCount, key = { pagedEntries[it]?.text ?: "" }) { index ->
-                    val entry = pagedEntries[index]
+            val coverFlowState = rememberCoverFlowState()
+
+            LazyCoverFlow(state = coverFlowState, itemCount = pagedEntries.itemCount, modifier = Modifier.fillMaxSize(), onFlingTarget = { targetIndex ->
+                // Fires before animation starts — start loading destination now
+            },) { index ->
+//                items(pagedEntries.itemCount, key = { pagedEntries.peek(it)?.text ?: "" }) { index ->
+
+                    val entry = if(coverFlowState.isAnimating) {
+                        pagedEntries.peek(index)
+                    } else {
+                        pagedEntries[index]
+                    }
+
+//                    val entry = pagedEntries[index]
+
                     if (entry != null) {
                         Text(
                             text = entry.text,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier
+//                                .animateItem(
+//                                    // fadeIn/fadeOut for items appearing/disappearing
+//                                    // (e.g. after a delete or filter)
+//                                    fadeInSpec = tween(300),
+//                                    fadeOutSpec = tween(300),
+//                                    // spring for positional shifts when neighbors
+//                                    // are added/removed/reordered
+//                                    placementSpec = spring(
+//                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+//                                        stiffness = Spring.StiffnessMedium
+//                                    )
+//                                )
                                 .padding(vertical = 4.dp)
                                 .background(if(selectedIndex == index) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                                 .sharedBounds(
@@ -173,47 +196,53 @@ fun HomeScreen(
                                         goToProfile(entry.text)
                                         true
                                     }
+                                    role = Role.Button
                                     selected = selectedIndex == index
                                 },
                         )
+                    } else {
+                        Text(
+                            text = "Loading...",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
                     }
-                }
+//                }
 
-                pagedEntries.apply {
-                    when {
-                        loadState.refresh is LoadState.Loading -> {
-                            item {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .wrapContentWidth(Alignment.CenterHorizontally)
-                                )
-                            }
-                        }
-
-                        loadState.append is LoadState.Loading -> {
-                            item {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .wrapContentWidth(Alignment.CenterHorizontally)
-                                )
-                            }
-                        }
-
-                        loadState.refresh is LoadState.Error -> {
-                            val e = loadState.refresh as LoadState.Error
-                            item {
-                                Text(
-                                    text = "Error: ${'$'}{e.error.message}",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .wrapContentWidth(Alignment.CenterHorizontally)
-                                )
-                            }
-                        }
-                    }
-                }
+//                pagedEntries.apply {
+//                    when {
+//                        loadState.refresh is LoadState.Loading -> {
+//                            item {
+//                                CircularProgressIndicator(
+//                                    modifier = Modifier
+//                                        .fillMaxWidth()
+//                                        .wrapContentWidth(Alignment.CenterHorizontally)
+//                                )
+//                            }
+//                        }
+//
+//                        loadState.append is LoadState.Loading -> {
+//                            item {
+//                                CircularProgressIndicator(
+//                                    modifier = Modifier
+//                                        .fillMaxWidth()
+//                                        .wrapContentWidth(Alignment.CenterHorizontally)
+//                                )
+//                            }
+//                        }
+//
+//                        loadState.refresh is LoadState.Error -> {
+//                            val e = loadState.refresh as LoadState.Error
+//                            item {
+//                                Text(
+//                                    text = "Error: ${'$'}{e.error.message}",
+//                                    modifier = Modifier
+//                                        .fillMaxWidth()
+//                                        .wrapContentWidth(Alignment.CenterHorizontally)
+//                                )
+//                            }
+//                        }
+//                    }
+//                }
             }
         }
     }
@@ -229,7 +258,10 @@ fun ProfileScreen(
     with(LocalSharedTransitionScope.current!!) {
         Column(
             modifier = modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .semantics {
+                    paneTitle = "Profile"
+                },
             verticalArrangement = Arrangement.Top
         ) {
             Row(
