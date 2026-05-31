@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
@@ -130,6 +131,8 @@ sealed class Route : NavKey {
     @Serializable
     object Favorites : Route()
     @Serializable
+    object Camera : Route()
+    @Serializable
     class Profile(val id: String) : Route()
 }
 
@@ -140,6 +143,7 @@ enum class AppDestinations(
 ) {
     HOME("Home", Icons.Default.Home, Route.Home),
     FAVORITES("Favorites", Icons.Default.Favorite, Route.Favorites),
+    CAMERA("Camera", Icons.Default.AccountBox, Route.Camera),
 }
 
 val LocalAnimationDuration = compositionLocalOf { 1000 }
@@ -378,6 +382,9 @@ fun MyApplicationApp() {
                                     modifier = Modifier.background(color = MaterialTheme.colorScheme.background)
                                 )
                             }
+                            entry<Route.Camera> {
+                                CameraScreen(modifier = Modifier)
+                            }
                             entry<Route.Favorites>(metadata = NavDisplay.transitionSpec {
                                 slideIntoContainer(
                                     towards = AnimatedContentTransitionScope.SlideDirection.Left,
@@ -455,7 +462,7 @@ fun MyApplicationApp() {
 
             Spacer(modifier = Modifier.height(16.dp))
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(pagedEntries.itemCount) { index ->
+                    items(pagedEntries.itemCount, key = { pagedEntries[it]?.text ?: "" }) { index ->
                         val entry = pagedEntries[index]
                         if (entry != null) {
                             Text(
