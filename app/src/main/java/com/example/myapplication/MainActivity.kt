@@ -89,6 +89,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
@@ -173,7 +183,7 @@ fun MyApplicationApp() {
                     icon = {
                         Icon(
                             it.icon,
-                            contentDescription = it.label
+                            contentDescription = it.label,
                         )
                     },
                     label = { Text(it.label) },
@@ -193,7 +203,7 @@ fun MyApplicationApp() {
             Icon(
                 imageVector = Icons.Filled.Star,
                 tint = Color.Red,
-                contentDescription = "Localized description",
+                contentDescription = "Red Star",
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(TopAppBarDefaults.LargeAppBarExpandedHeight + systemInsets.calculateTopPadding())
@@ -243,7 +253,9 @@ fun MyApplicationApp() {
                                 Text(
                                     text = data.visuals.message,
                                     color = MaterialTheme.colorScheme.inverseOnSurface,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f).semantics {
+                                        contentDescription = "${data.visuals.message} Snackbar"
+                                    }
                                 )
                                 data.visuals.actionLabel?.let { label ->
                                     Button(onClick = { data.performAction() }) {
@@ -263,7 +275,12 @@ fun MyApplicationApp() {
                         titleContentColor = MaterialTheme.colorScheme.primary,
                     ),
                     title = {
-                        Text("")
+                        Text(currentDestination.label,
+                            modifier = Modifier.semantics {
+                                heading()
+                                liveRegion = LiveRegionMode.Polite
+                                traversalIndex = -1f
+                            })
                     },
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
@@ -272,7 +289,16 @@ fun MyApplicationApp() {
                         } }) {
                             Icon(
                                 imageVector = Icons.Filled.Star,
-                                contentDescription = "Localized description"
+                                contentDescription = "Navigate back",
+                                modifier = Modifier.semantics {
+                                    role = Role.Button
+                                    onClick(label = "Navigate back") {
+                                        if (backStack.isNotEmpty()) {
+                                            backStack.removeLastOrNull()
+                                        }
+                                        true
+                                    }
+                                }
                             )
                         }
                     },
@@ -285,16 +311,24 @@ fun MyApplicationApp() {
                             Button(
                                 onClick = { },
                                 shape = CircleShape,
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                                    modifier = Modifier.semantics {
+                                        onClick(label = "Do nothing") {
+                                            true
+                                        }
+                                    }
                             ) {
                                 Text(
                                     text = "a",
-                                    textAlign = TextAlign.Center
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.semantics {
+                                        contentDescription = "Profile Settings"
+                                    }
                                 )
                             }
                             Icon(
                                 imageVector = Icons.Filled.Menu,
-                                contentDescription = "Localized description",
+                                contentDescription = null,
                                 modifier = Modifier
                                     .size(16.dp)
                                     .align(Alignment.BottomEnd)
@@ -311,11 +345,20 @@ fun MyApplicationApp() {
                     scope.launch  {
                         snackbarHostState.showSnackbar("Hello")
                     }
-
-                }, shape = CircleShape, modifier = Modifier.size(48.dp), ) {
+                }, shape = CircleShape,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics {
+                            onClick(label = "Show snackbar") {
+                                scope.launch  {
+                                    snackbarHostState.showSnackbar("Hello")
+                                }
+                                true
+                            }
+                        }, ) {
                     Icon(
                         imageVector = Icons.Filled.Add,
-                        contentDescription = "Localized description",
+                        contentDescription = "Snackbar",
                         modifier = Modifier
                             .size(16.dp)
                             .border(1.dp, Color.Red, CircleShape)

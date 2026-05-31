@@ -2,8 +2,10 @@ package com.example.myapplication
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,11 +25,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.CornerRounding
 import androidx.graphics.shapes.RoundedPolygon
@@ -49,6 +61,7 @@ fun HomeScreen(
 ) {
     val pagedEntries = viewModel.pagedEntries.collectAsLazyPagingItems()
     var text by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
     with(LocalSharedTransitionScope.current!!) {
         Column(
             modifier = modifier
@@ -59,8 +72,27 @@ fun HomeScreen(
                 value = text,
                 onValueChange = { text = it },
                 label = { Text("New Entry") },
+                // Shows the Done button on the keyboard instead of Return
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                // Wires Done button to the addEntry action + dismisses keyboard
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        viewModel.addEntry(text)
+                        text = ""
+                        focusManager.clearFocus()
+                    }
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
+                    // TalkBack: announces "double tap to Add entry" on the field
+                    .semantics {
+                        onClick(label = "Add entry") {
+                            viewModel.addEntry(text)
+                            text = ""
+                            focusManager.clearFocus()
+                            true
+                        }
+                    }
                     .sharedBounds(
                         rememberSharedContentState(key = "textfield"),
                         animatedVisibilityScope = LocalNavAnimatedContentScope.current,
@@ -77,6 +109,13 @@ fun HomeScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.End)
+                    .semantics {
+                        onClick(label = "add entry") {
+                            viewModel.addEntry(text)
+                            text = ""
+                            true
+                        }
+                    }
             ) {
                 Text("Add")
             }
@@ -86,11 +125,17 @@ fun HomeScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.End)
+                    .semantics {
+                        onClick(label = "Go to camera") {
+                            goToCamera()
+                            true
+                        }
+                    }
                     .sharedBoundsWithMorphableShape("camera",
                         sharedTransitionScope = LocalSharedTransitionScope.current!!,
                         animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                         startShape = RoundedPolygon.circle(numVertices = 8),
-                        enter = fadeIn(initialAlpha = 0f),
+                        enter = fadeIn(),
                         exit = fadeOut(),
                         endShape   = RoundedPolygon.rectangle())
             ) {
@@ -99,6 +144,9 @@ fun HomeScreen(
 
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            var selectedIndex by remember { mutableIntStateOf(-1) }
+
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(pagedEntries.itemCount, key = { pagedEntries[it]?.text ?: "" }) { index ->
                     val entry = pagedEntries[index]
@@ -108,6 +156,7 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier
                                 .padding(vertical = 4.dp)
+                                .background(if(selectedIndex == index) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                                 .sharedBounds(
                                     rememberSharedContentState(key = entry.text),
                                     animatedVisibilityScope = LocalNavAnimatedContentScope.current,
@@ -116,7 +165,15 @@ fun HomeScreen(
                                     resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
                                 )
                                 .clickable {
+                                    selectedIndex = index
                                     goToProfile(entry.text)
+                                }
+                                .semantics {
+                                    onClick(label = "Open Profile") {
+                                        goToProfile(entry.text)
+                                        true
+                                    }
+                                    selected = selectedIndex == index
                                 },
                         )
                     }

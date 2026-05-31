@@ -19,6 +19,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
@@ -53,6 +54,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -120,7 +127,7 @@ private fun CameraPreview(modifier: Modifier = Modifier) {
                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                 startShape = RoundedPolygon.rectangle(),
                 endShape = RoundedPolygon.circle(numVertices = 8),
-                enter = fadeIn(initialAlpha = 0f),
+                enter = fadeIn(),
                 exit = fadeOut(),
             )
     ) {
@@ -249,6 +256,15 @@ fun ShutterButton(
                         )
                     }
                 )
+            }
+            .semantics {
+                role = Role.Button
+                contentDescription = "Shutter"
+                stateDescription = if(isCapturing) "Capturing" else "Ready"
+                onClick(label = "Take Picture") {
+                    onClick()
+                    true
+                }
             },
         contentAlignment = Alignment.Center
     ) {
