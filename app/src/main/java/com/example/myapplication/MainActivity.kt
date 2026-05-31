@@ -160,6 +160,12 @@ fun MyApplicationApp() {
 
     val backStack = rememberNavBackStack(Route.Home)
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val scope = rememberCoroutineScope()
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
@@ -182,11 +188,7 @@ fun MyApplicationApp() {
         }
     ) {
 
-        val snackbarHostState = remember { SnackbarHostState() }
 
-        val scope = rememberCoroutineScope()
-
-        val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
 
         Box(modifier = Modifier
             .fillMaxSize()) {
@@ -306,7 +308,7 @@ fun MyApplicationApp() {
                     },
                 )
             },
-            floatingActionButtonPosition = FabPosition.EndOverlay,
+            floatingActionButtonPosition = FabPosition.End,
             floatingActionButton = {
                 FloatingActionButton(onClick = {
                     scope.launch  {
@@ -379,6 +381,9 @@ fun MyApplicationApp() {
                                             backStack.removeLastOrNull()
                                         backStack.add(Route.Profile(it))
                                     },
+                                    goToCamera = {
+                                        backStack.add(Route.Camera)
+                                    },
                                     modifier = Modifier.background(color = MaterialTheme.colorScheme.background)
                                 )
                             }
@@ -415,172 +420,11 @@ fun MyApplicationApp() {
     }
 }
 
-
-    @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3AdaptiveApi::class)
-    @Composable
-    fun HomeScreen(
-        viewModel: MainViewModel = hiltViewModel(),
-        goToProfile: (String) -> Unit = {},
-        modifier: Modifier
-    ) {
-        val pagedEntries = viewModel.pagedEntries.collectAsLazyPagingItems()
-        var text by remember { mutableStateOf("") }
-        with(LocalSharedTransitionScope.current!!) {
-
-
-
-        Column(
-            modifier = modifier
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.Top
-        ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("New Entry") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .sharedBounds(
-                        rememberSharedContentState(key = "textfield"),
-                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                        enter = fadeIn(initialAlpha = 0f),
-                        exit = fadeOut(),
-                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                    ),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    viewModel.addEntry(text)
-                    text = ""
-                },
-                modifier = Modifier
-                    .align(Alignment.End)
-            ) {
-                Text("Add")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(pagedEntries.itemCount, key = { pagedEntries[it]?.text ?: "" }) { index ->
-                        val entry = pagedEntries[index]
-                        if (entry != null) {
-                            Text(
-                                text = entry.text,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier
-                                    .padding(vertical = 4.dp)
-                                    .sharedBounds(
-                                        rememberSharedContentState(key = entry.text),
-                                        animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                                        enter = fadeIn(),
-                                        exit = fadeOut(),
-                                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                                    )
-                                    .clickable {
-                                        goToProfile(entry.text)
-                                    },
-                            )
-                        }
-                    }
-
-                    pagedEntries.apply {
-                        when {
-                            loadState.refresh is LoadState.Loading -> {
-                                item {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .wrapContentWidth(Alignment.CenterHorizontally)
-                                    )
-                                }
-                            }
-
-                            loadState.append is LoadState.Loading -> {
-                                item {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .wrapContentWidth(Alignment.CenterHorizontally)
-                                    )
-                                }
-                            }
-
-                            loadState.refresh is LoadState.Error -> {
-                                val e = loadState.refresh as LoadState.Error
-                                item {
-                                    Text(
-                                        text = "Error: ${'$'}{e.error.message}",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .wrapContentWidth(Alignment.CenterHorizontally)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun FavoritesScreen(modifier: Modifier) {
-        Column(
-            modifier = modifier
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.Top
-        ) {
-            Text(
-                text = "Favorites",
-                modifier = modifier
-            )
-        }
-    }
-
-
-    @OptIn(ExperimentalSharedTransitionApi::class)
-    @Composable
-    fun ProfileScreen(
-        viewModel: ProfileViewModel,
-        modifier: Modifier
-    ) {
-        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-        with(LocalSharedTransitionScope.current!!) {
-            Column(
-                modifier = modifier
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.Top
-            ) {
-                Row(
-                    modifier = modifier
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Profile: ",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        text = uiState,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.sharedBounds(
-                            rememberSharedContentState(key = uiState),
-                            animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                        )
-                    )
-                }
-            }
-        }
-    }
-
     @Preview(showBackground = true)
     @Composable
-    fun FavoritesScreenPreview() {
+    fun OpenAIScreenPreview() {
         MyApplicationTheme {
-            FavoritesScreen(Modifier)
+            OpenAIScreen(Modifier)
         }
     }
 

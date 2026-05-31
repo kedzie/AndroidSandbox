@@ -15,6 +15,7 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -52,6 +53,7 @@ import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.circle
 import androidx.graphics.shapes.toPath
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 
 @Composable
 fun CameraScreen(modifier: Modifier = Modifier) {
@@ -86,6 +88,7 @@ fun CameraScreen(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun CameraPreview(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -93,7 +96,9 @@ private fun CameraPreview(modifier: Modifier = Modifier) {
     val imageCapture = remember { ImageCapture.Builder().build() }
     var isCapturing by remember { mutableStateOf(false) }
 
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()
+
+    ) {
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
                 PreviewView(ctx).also { previewView ->
@@ -115,7 +120,11 @@ private fun CameraPreview(modifier: Modifier = Modifier) {
                     }, ContextCompat.getMainExecutor(ctx))
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().sharedBoundsWithMorphableShape("camera",
+                sharedTransitionScope = LocalSharedTransitionScope.current!!,
+                animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                endShape = RoundedPolygon.circle(numVertices = 8),
+                startShape   = RoundedPolygon(numVertices = 4, rounding = CornerRounding(0.05f)))
         )
 
         ShutterButton(
