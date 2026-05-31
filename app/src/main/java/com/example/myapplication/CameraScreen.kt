@@ -19,11 +19,15 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,21 +43,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.graphics.shapes.CornerRounding
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.circle
+import androidx.graphics.shapes.rectangle
 import androidx.graphics.shapes.toPath
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
+import kotlin.math.roundToInt
 
 @Composable
 fun CameraScreen(modifier: Modifier = Modifier) {
@@ -95,14 +107,31 @@ private fun CameraPreview(modifier: Modifier = Modifier) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val imageCapture = remember { ImageCapture.Builder().build() }
     var isCapturing by remember { mutableStateOf(false) }
+    var isStreaming by remember { mutableStateOf(false) }
 
-    Box(modifier.fillMaxSize()
-
+    // sharedBoundsWithMorphableShape on the outer Box — clips everything including
+    // the placeholder, so the black startup frame is never visible through the morph.
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .sharedBoundsWithMorphableShape(
+                key = "camera",
+                sharedTransitionScope = LocalSharedTransitionScope.current!!,
+                animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                startShape = RoundedPolygon.rectangle(),
+                endShape = RoundedPolygon.circle(numVertices = 8),
+                enter = fadeIn(initialAlpha = 0f),
+                exit = fadeOut(),
+            )
     ) {
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { ctx ->
                 PreviewView(ctx).also { previewView ->
                     previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    // StreamState tells us exactly when the first camera frame arrives
+                    previewView.previewStreamState.observe(lifecycleOwner) { state ->
+                        isStreaming = state == PreviewView.StreamState.STREAMING
+                    }
                     val future = ProcessCameraProvider.getInstance(ctx)
                     future.addListener({
                         val cameraProvider = future.get()
@@ -120,12 +149,24 @@ private fun CameraPreview(modifier: Modifier = Modifier) {
                     }, ContextCompat.getMainExecutor(ctx))
                 }
             },
-            modifier = Modifier.fillMaxSize().sharedBoundsWithMorphableShape("camera",
-                sharedTransitionScope = LocalSharedTransitionScope.current!!,
-                animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                endShape = RoundedPolygon.circle(numVertices = 8),
-                startShape   = RoundedPolygon(numVertices = 4, rounding = CornerRounding(0.05f)))
+            modifier = Modifier.fillMaxSize()
         )
+
+        // Covers the black PreviewView startup frames with the surface color.
+        // AnimatedVisibility fades it out once the camera reports STREAMING state,
+        // so the reveal transition sees a solid surface color — never raw black.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !isStreaming,
+            exit = androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(300)
+            )
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+            )
+        }
 
         ShutterButton(
             isCapturing = isCapturing,
@@ -167,6 +208,8 @@ fun ShutterButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+
+
     // Build once: circle (8 vertices for smooth morphing) → rounded square
     val morph = remember {
         val circle = RoundedPolygon.circle(numVertices = 8)
@@ -186,13 +229,31 @@ fun ShutterButton(
         label = "shutter_morph"
     )
 
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    val buttonSize = 80.dp
+    val buttonPx = with(LocalDensity.current) { buttonSize.toPx() }
+    modifier.onSizeChanged { containerSize = it }
     Box(
         modifier = modifier
             .size(80.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
+            .clickable { onClick() }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        offset = Offset(
+                            x = (offset.x + dragAmount.x),
+                            y = (offset.y + dragAmount.y)
+                        )
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
+
+
         // Outer ring — static, drawn once via simple drawCircle
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(

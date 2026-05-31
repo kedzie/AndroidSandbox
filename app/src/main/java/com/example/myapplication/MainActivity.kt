@@ -187,9 +187,6 @@ fun MyApplicationApp() {
             }
         }
     ) {
-
-
-
         Box(modifier = Modifier
             .fillMaxSize()) {
             val systemInsets = WindowInsets.statusBars.asPaddingValues()
@@ -261,8 +258,8 @@ fun MyApplicationApp() {
             topBar = {
                 LargeTopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
+                        scrolledContainerColor = MaterialTheme.colorScheme.primaryContainer,
                         containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Transparent,
                         titleContentColor = MaterialTheme.colorScheme.primary,
                     ),
                     title = {

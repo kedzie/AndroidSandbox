@@ -4,12 +4,15 @@ import android.graphics.Matrix
 import android.graphics.RectF
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SharedTransitionScope.OverlayClip
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -96,6 +99,7 @@ class MorphableShape(
  * ```
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
 fun Modifier.sharedBoundsWithMorphableShape(
     key: Any,
     sharedTransitionScope: SharedTransitionScope,
@@ -103,7 +107,11 @@ fun Modifier.sharedBoundsWithMorphableShape(
     startShape: RoundedPolygon,
     endShape: RoundedPolygon,
     animationSpec: FiniteAnimationSpec<Float> = spring(),
-): Modifier = composed {
+    // Default None on both ends so only the destination content is rendered
+    // during the transition — no crossfade bleed from the source composable.
+    enter: EnterTransition = EnterTransition.None,
+    exit: ExitTransition = ExitTransition.None,
+): Modifier = with(sharedTransitionScope) {
 
     val morph = remember(startShape, endShape) {
         Morph(start = startShape, end = endShape)
@@ -117,9 +125,9 @@ fun Modifier.sharedBoundsWithMorphableShape(
         label = "morph_clip_$key"
     ) { enterExitState ->
         when (enterExitState) {
-            EnterExitState.PreEnter -> 0f
-            EnterExitState.Visible  -> 1f
-            EnterExitState.PostExit -> 0f
+            EnterExitState.PreEnter -> 1f
+            EnterExitState.Visible  -> 0f
+            EnterExitState.PostExit -> 1f
         }
     }
 
@@ -128,12 +136,11 @@ fun Modifier.sharedBoundsWithMorphableShape(
     val clipShape = remember(morph) {
         MorphableShape(morph = morph, progressState = progressState)
     }
-
-    with(sharedTransitionScope) {
-        this@sharedBoundsWithMorphableShape.sharedBounds(
+        this@sharedBoundsWithMorphableShape.skipToLookaheadSize().skipToLookaheadPosition().sharedBounds(
             sharedContentState = rememberSharedContentState(key = key),
             animatedVisibilityScope = animatedVisibilityScope,
+            enter = enter,
+            exit = exit,
             clipInOverlayDuringTransition = OverlayClip(clipShape),
-        ).skipToLookaheadSize { true }.skipToLookaheadPosition { true }
-    }
+        )
 }

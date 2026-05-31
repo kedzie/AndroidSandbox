@@ -42,6 +42,14 @@ android {
     buildFeatures {
         compose = true
     }
+
+    composeCompiler {
+        // Generates per-class stability reports and per-composable metrics after build.
+        // Read from build/compose_reports/ — look for classes marked "unstable"
+        // and composables with high recomposition counts or "restartable but not skippable".
+        reportsDestination = layout.buildDirectory.dir("compose_reports")
+        metricsDestination = layout.buildDirectory.dir("compose_metrics")
+    }
 }
 
 dependencies {
@@ -62,7 +70,6 @@ dependencies {
     implementation(libs.androidx.paging.runtime.ktx)
     implementation(libs.androidx.paging.compose)
 
-//    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
 
     implementation(libs.androidx.navigation3.ui)
@@ -88,4 +95,6 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // build.gradle.kts — debug only
+    debugImplementation("androidx.compose.runtime:runtime-tracing:1.0.0")
 }

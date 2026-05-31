@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.CornerRounding
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.circle
+import androidx.graphics.shapes.rectangle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
@@ -88,8 +89,10 @@ fun HomeScreen(
                     .sharedBoundsWithMorphableShape("camera",
                         sharedTransitionScope = LocalSharedTransitionScope.current!!,
                         animatedVisibilityScope = LocalNavAnimatedContentScope.current,
-                        endShape = RoundedPolygon.circle(numVertices = 8),
-                        startShape   = RoundedPolygon(numVertices = 4, rounding = CornerRounding(0.05f)))
+                        startShape = RoundedPolygon.circle(numVertices = 8),
+                        enter = fadeIn(initialAlpha = 0f),
+                        exit = fadeOut(),
+                        endShape   = RoundedPolygon.rectangle())
             ) {
                 Text("Camera")
             }
