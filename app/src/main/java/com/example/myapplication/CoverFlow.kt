@@ -1,6 +1,6 @@
 package com.example.myapplication
 
-import android.R.attr.translationZ
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.calculateTargetValue
@@ -36,7 +36,8 @@ private const val SIDE_ITEMS       = 4      // items rendered on each side of ce
 private const val ROTATION_Y       = 55f    // max rotationY in degrees
 private const val SCALE_PER_ITEM   = 0.10f  // scale reduction per item from center
 private const val Z_DEPTH          = 60f    // dp pushed back per item from center
-private const val SPACING_FRACTION = 0.36f  // fraction of item width between item centers
+private const val SPACING_FRACTION = 0.05f  // fraction of item width between item centers
+
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ fun LazyCoverFlow(
     LaunchedEffect(itemCount) {
         state.position.updateBounds(
             lowerBound = 0f,
-            upperBound = (itemCount).toFloat()
+            upperBound = (itemCount-1f).coerceAtLeast(0f)
         )
     }
 
@@ -240,6 +241,7 @@ fun LazyCoverFlow(
             val centerY   = constraints.maxHeight / 2 - itemHeightPx / 2
             val spacingPx = (itemWidthPx * SPACING_FRACTION).toInt()
 
+
             // Back-to-front ordering so center item paints over side items.
             measuredItems
                 .sortedByDescending { (index, _) -> abs(index - visualPos) }
@@ -248,14 +250,13 @@ fun LazyCoverFlow(
                     val absOffset = abs(offset)
 
                     placeable.placeWithLayer(
-                        x = centerX + (offset * spacingPx).roundToInt(),
+                        x = centerX + (offset.coerceIn(-1f, 1f) * (itemWidthPx/2) + offset * spacingPx).roundToInt(),
                         y = centerY
                     ) {
-                        rotationY = (-offset * ROTATION_Y).coerceIn(-80f, 80f)
-                        val scale = (1f - absOffset * SCALE_PER_ITEM).coerceAtLeast(0.4f)
-                        scaleX = scale
-                        scaleY = scale
-//                        translationZ  = 60 //(-absOffset * Z_DEPTH)
+                        rotationY = (-offset * ROTATION_Y).coerceIn(-ROTATION_Y, ROTATION_Y)
+//                        val scale = (1f - absOffset * SCALE_PER_ITEM).coerceAtLeast(0.4f)
+//                        scaleX = scale
+//                        scaleY = scale
                         cameraDistance = 8 * density
                     }
                 }

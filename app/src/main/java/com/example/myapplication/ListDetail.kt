@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -178,8 +179,8 @@ fun HomeScreen(
 //                                        stiffness = Spring.StiffnessMedium
 //                                    )
 //                                )
-                                .padding(vertical = 4.dp)
-                                .background(if(selectedIndex == index) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                                .padding(vertical = 4.dp, horizontal = 4.dp)
+                                .border(4.dp, if(selectedIndex == index) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer)
                                 .sharedBounds(
                                     rememberSharedContentState(key = entry.text),
                                     animatedVisibilityScope = LocalNavAnimatedContentScope.current,
