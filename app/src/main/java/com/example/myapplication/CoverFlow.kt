@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
@@ -36,7 +37,7 @@ private const val SIDE_ITEMS       = 4      // items rendered on each side of ce
 private const val ROTATION_Y       = 55f    // max rotationY in degrees
 private const val SCALE_PER_ITEM   = 0.10f  // scale reduction per item from center
 private const val Z_DEPTH          = 60f    // dp pushed back per item from center
-private const val SPACING_FRACTION = 0.05f  // fraction of item width between item centers
+private const val SPACING_FRACTION = 0.1f  // fraction of item width between item centers
 
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -254,9 +255,10 @@ fun LazyCoverFlow(
                         y = centerY
                     ) {
                         rotationY = (-offset * ROTATION_Y).coerceIn(-ROTATION_Y, ROTATION_Y)
-//                        val scale = (1f - absOffset * SCALE_PER_ITEM).coerceAtLeast(0.4f)
-//                        scaleX = scale
-//                        scaleY = scale
+                        transformOrigin = TransformOrigin(.5f, 1f)
+                        val scale = (1f - absOffset * SCALE_PER_ITEM).coerceAtLeast(0.4f)
+                        scaleX = scale
+                        scaleY = scale
                         cameraDistance = 8 * density
                     }
                 }
