@@ -24,6 +24,11 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.semantics.ScrollAxisRange
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.horizontalScrollAxisRange
+import androidx.compose.ui.semantics.scrollBy
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -138,6 +143,33 @@ fun LazyCoverFlow(
     LazyLayout(
         itemProvider = { CoverFlowItemProvider(itemCount) { updatedContent(it) } },
         modifier = modifier
+            .semantics {
+                contentDescription = "Cover flow. Swipe to scroll."
+                horizontalScrollAxisRange = ScrollAxisRange(
+                    value = { state.position.value },
+                    maxValue = { (itemCount - 1).coerceAtLeast(0).toFloat() }
+                )
+
+                // TalkBack and Tests will call this function to move the carousel
+                scrollBy { x, y ->
+                    val maxIndex = (itemCount - 1).coerceAtLeast(0).toFloat()
+                    // Translate the requested pixel scroll into your fractional index math
+                    val indexDelta = -x / itemWidth.value
+
+                    scope.launch {
+                        val target = (state.position.value + indexDelta).coerceIn(0f, maxIndex)
+                        // Trigger your exact same spring physics!
+                        state.position.animateTo(
+                            targetValue = target,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            )
+                        )
+                    }
+                    true // Return true to indicate the scroll was consumed
+                }
+            }
             .pointerInput(itemCount) {
                 val itemWidthPx = itemWidth.toPx()
                 val velocityTracker = VelocityTracker()
@@ -217,21 +249,18 @@ fun LazyCoverFlow(
                         }
                     }
                 )
-            }
+            },
 
     ) { constraints ->
         val itemWidthPx  = itemWidth.roundToPx()
         val itemHeightPx = itemHeight.roundToPx()
         val itemConstraints = Constraints.fixed(itemWidthPx, itemHeightPx)
 
-        // Reading position.value here subscribes the Layout phase to Animatable.
-        // Every animation frame triggers re-layout — positions update each frame.
-        // The graphicsLayer transforms inside placeWithLayer (rotation, scale, Z)
-        // are Draw-phase operations on the RenderNode and do not cause re-layout.
-        val visualPos = state.position.value
-
-        val first = (visualPos.toInt() - SIDE_ITEMS).coerceAtLeast(0)
-        val last  = (visualPos.toInt() + SIDE_ITEMS + 1).coerceAtMost(itemCount - 1)
+        // 1. LAYOUT PHASE: Only read the stable integer index here!
+        // This value only changes when the carousel crosses the 50% threshold to the next card.
+        val baseIndex = state.currentIndex
+        val first = (baseIndex - SIDE_ITEMS).coerceAtLeast(0)
+        val last  = (baseIndex + SIDE_ITEMS).coerceAtMost(itemCount - 1)
 
         val measuredItems = (first..last).mapNotNull { index ->
             measure(index, itemConstraints).firstOrNull()?.let { index to it }
@@ -242,19 +271,32 @@ fun LazyCoverFlow(
             val centerY   = constraints.maxHeight / 2 - itemHeightPx / 2
             val spacingPx = (itemWidthPx * SPACING_FRACTION).toInt()
 
-
             // Back-to-front ordering so center item paints over side items.
             measuredItems
-                .sortedByDescending { (index, _) -> abs(index - visualPos) }
+                .sortedByDescending { (index, _) -> abs(index - baseIndex) }
                 .forEach { (index, placeable) ->
-                    val offset    = index - visualPos
-                    val absOffset = abs(offset)
+                    val offset    = index - baseIndex
+
+                    // Calculate the exact static pixel offset from the center
+                    val staticXOffset = offset.coerceIn(-1, 1) * (itemWidthPx / 2f) + (offset * spacingPx)
+                    val staticX = centerX + staticXOffset.roundToInt()
 
                     placeable.placeWithLayer(
-                        x = centerX + (offset.coerceIn(-1f, 1f) * (itemWidthPx/2) + offset * spacingPx).roundToInt(),
+                        x = staticX,
                         y = centerY
                     ) {
-                        rotationY = (-offset * ROTATION_Y).coerceIn(-ROTATION_Y, ROTATION_Y)
+                        // 3. DRAW PHASE: Read the rapidly changing float value INSIDE the lambda
+                        val currentVisualPos = state.position.value
+                        // The actual floating distance from this specific card to the exact center
+                        val exactOffset = index - currentVisualPos
+                        val absOffset = abs(exactOffset)
+
+                        // Run the exact same piecewise formula using the continuous float
+                        val continuousXOffset = exactOffset.coerceIn(-1f, 1f) * (itemWidthPx / 2f) + (exactOffset * spacingPx)
+
+                        translationX = continuousXOffset - staticXOffset
+
+                        rotationY = (-exactOffset * ROTATION_Y).coerceIn(-ROTATION_Y, ROTATION_Y)
                         transformOrigin = TransformOrigin(.5f, 1f)
                         val scale = (1f - absOffset * SCALE_PER_ITEM).coerceAtLeast(0.4f)
                         scaleX = scale

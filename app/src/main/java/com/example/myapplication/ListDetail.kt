@@ -152,7 +152,6 @@ fun HomeScreen(
             LazyCoverFlow(state = coverFlowState, itemCount = pagedEntries.itemCount, modifier = Modifier.fillMaxSize(), onFlingTarget = { targetIndex ->
                 // Fires before animation starts — start loading destination now
             },) { index ->
-//                items(pagedEntries.itemCount, key = { pagedEntries.peek(it)?.text ?: "" }) { index ->
 
                     val entry = if(coverFlowState.isAnimating) {
                         pagedEntries.peek(index)
@@ -160,25 +159,11 @@ fun HomeScreen(
                         pagedEntries[index]
                     }
 
-//                    val entry = pagedEntries[index]
-
                     if (entry != null) {
                         Text(
                             text = entry.text,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier
-//                                .animateItem(
-//                                    // fadeIn/fadeOut for items appearing/disappearing
-//                                    // (e.g. after a delete or filter)
-//                                    fadeInSpec = tween(300),
-//                                    fadeOutSpec = tween(300),
-//                                    // spring for positional shifts when neighbors
-//                                    // are added/removed/reordered
-//                                    placementSpec = spring(
-//                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-//                                        stiffness = Spring.StiffnessMedium
-//                                    )
-//                                )
                                 .padding(vertical = 4.dp, horizontal = 4.dp)
                                 .border(4.dp, if(selectedIndex == index) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer)
                                 .sharedBounds(
@@ -207,7 +192,6 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }
-//                }
 
 //                pagedEntries.apply {
 //                    when {
